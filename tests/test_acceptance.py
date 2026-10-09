@@ -98,6 +98,40 @@ def test_workbook_sheet_relationships_select_the_related_parts(tmp_path: Path) -
     assert snapshot.formulas[("Data", "B2")] == "SUM(Data!B2:B3)"
 
 
+def test_defined_names_include_only_workbook_global_definitions(tmp_path: Path) -> None:
+    scoped = tmp_path / "scoped-names.xlsx"
+    with zipfile.ZipFile(BEFORE) as source, zipfile.ZipFile(scoped, "w") as target:
+        for info in source.infolist():
+            contents = source.read(info.filename)
+            if info.filename == "xl/workbook.xml":
+                root = ElementTree.fromstring(contents)
+                namespace = root.tag.rsplit("}", 1)[0] + "}"
+                defined_names = root.find(f"{namespace}definedNames")
+                if defined_names is None:
+                    defined_names = ElementTree.SubElement(root, f"{namespace}definedNames")
+                # Same-name local definitions must not collide with or replace
+                # the workbook-global definition. Local-only names stay local.
+                ElementTree.SubElement(
+                    defined_names, f"{namespace}definedName",
+                    {"name": "Revenue", "localSheetId": "0"},
+                ).text = "'Data'!$B$4"
+                ElementTree.SubElement(
+                    defined_names, f"{namespace}definedName",
+                    {"name": "LocalOnly", "localSheetId": "1"},
+                ).text = "'Data'!$A$2"
+                contents = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
+            target.writestr(info, contents)
+
+    snapshot = snapshot_workbook(scoped)
+    assert snapshot.defined_names["Revenue"] == "'Summary'!$B$2"
+    assert "LocalOnly" not in snapshot.defined_names
+    findings = check_contract({
+        "version": 1,
+        "defined_names": [{"name": "LocalOnly", "refers_to": "'Data'!$A$2"}],
+    }, snapshot)
+    assert [finding.code for finding in findings] == ["defined_name.mismatch"]
+
+
 def test_corrupt_and_missing_workbooks_fail_as_unreadable(tmp_path: Path) -> None:
     corrupt = tmp_path / "corrupt.xlsx"
     corrupt.write_bytes(b"not an OOXML zip package")

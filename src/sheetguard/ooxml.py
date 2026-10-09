@@ -130,6 +130,11 @@ def snapshot_workbook(path: str | Path) -> WorkbookSnapshot:
         defined_names: dict[str, str] = {}
         for container in _children(workbook, "definedNames"):
             for defined_name in _children(container, "definedName"):
+                # Worksheet-scoped names are outside WorkbookSnapshot's
+                # workbook-global contract. In particular, they may reuse a
+                # global name without making that global name ambiguous.
+                if defined_name.get("localSheetId") is not None:
+                    continue
                 name = defined_name.get("name")
                 if not name:
                     raise ValueError("Workbook contains a defined name without a name")
