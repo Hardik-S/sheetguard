@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "sheets": ["Summary", "Data"],
+  "formulas": [
+    {"sheet": "Summary", "cell": "B2", "formula": "SUM(Data!B2:B3)"},
+    {"sheet": "Data", "cell": "B4", "formula": "SUM(B2:B3)"}
+  ],
+  "defined_names": [
+    {"name": "Revenue", "refers_to": "'Summary'!$B$2"}
+  ],
+  "validations": [
+    {"sheet": "Data", "cell": "A2", "type": "list"}
+  ]
+}
